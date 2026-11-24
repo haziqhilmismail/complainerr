@@ -1,0 +1,8 @@
+# Copy to ~/.config/complainerr/profile.toml and fill in. Keep the real file out of git.
+# These values become the defaults of `complainerr submit` (and `status` for doc_no / doc_type).
+name = "ALI BIN ABU"          # as on your IC
+doc_type = "NRIC"             # NRIC, PASS, COMP or OTH
+doc_no = "900101145555"       # IC number, no dashes
+requester_type = "CTZ"        # JPA only: GS, GP, STD or CTZ
+mobile = "0123456789"
+email = "ali@example.com"     # MBSJ sends the OTP and the ticket here

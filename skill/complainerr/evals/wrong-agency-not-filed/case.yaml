@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: wrong-agency-not-filed
+expected_outcome: |
+  Recognises that Taman Melawati is not in MBSJ's area (it is under Majlis Perbandaran Ampang Jaya), says complainerr does not support that council, and does not file or dry-run the case with MBSJ or JPA.

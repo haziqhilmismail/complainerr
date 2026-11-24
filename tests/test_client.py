@@ -240,3 +240,19 @@ def test_attachment_uploads_before_otp_and_save(tmp_path):
     assert (data["src"], data["org.apache.struts.taglib.html.TOKEN"]) == ("SDMSPOOL", "d29c5e79690abac41c43ae97f259ef46")
     assert c.session.files == {"faDocName": ("parking.png", b"PNG")}
     assert [u for u, _ in rest][-1] == f"{MBSJ}/save.do"
+
+
+def test_cli_takes_requester_from_profile(tmp_path, monkeypatch):
+    from click.testing import CliRunner
+
+    from complainerr import cli
+
+    profile = tmp_path / "profile.toml"
+    profile.write_text('name = "ALI BIN ABU"\ndoc_no = "900101145555"\nmobile = "0123456789"\nemail = "ali@example.com"\n')
+    monkeypatch.setattr(cli, "PROFILE", profile)
+    monkeypatch.setattr(cli, "SispaaClient", lambda site: client(site))
+    result = CliRunner().invoke(cli.main, ["--site", "mbsj", "submit", "--type", "aduan", "--subject", "s",
+                                           "--detail", "d", "--location", "x"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout[result.stdout.index("{"):])
+    assert (payload["rqName"], payload["rqDocNo"], payload["rqEmail"]) == ("ALI BIN ABU", "900101145555", "ali@example.com")

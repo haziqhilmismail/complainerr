@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: mbsj-drain-drafts-before-send
+expected_outcome: |
+  Picks MBSJ, drafts a Malay subject and a Malay-then-English detail with the USJ 2/4 location, shows the personal details from the profile, runs only a dry run, and asks the user to confirm before sending.

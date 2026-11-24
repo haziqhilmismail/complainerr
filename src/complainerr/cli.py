@@ -1,4 +1,6 @@
 import json
+import os
+import tomllib
 from dataclasses import asdict
 from pathlib import Path
 
@@ -6,12 +8,22 @@ import click
 
 from .client import SITES, Case, CaseType, Requester, SispaaClient, SispaaError
 
+PROFILE = Path(os.environ.get("COMPLAINERR_PROFILE", Path.home() / ".config/complainerr/profile.toml"))
+
+
 @click.group()
 @click.option("--site", default="jpa", type=click.Choice(list(SITES)), help="Which agency's SISPAA site.")
 @click.pass_context
 def main(ctx, site):
-    """SISPAA public complaint sites (JPA, MBSJ) from the command line."""
+    """SISPAA public complaint sites (JPA, MBSJ) from the command line.
+
+    Your personal details (name, doc-no, mobile, email, ...) can live in
+    ~/.config/complainerr/profile.toml (or $COMPLAINERR_PROFILE); see profile.example.toml.
+    """
     ctx.obj = site
+    if PROFILE.is_file():
+        profile = tomllib.loads(PROFILE.read_text())
+        ctx.default_map = {"submit": profile, "status": profile}
 
 
 @main.command()

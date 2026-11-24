@@ -34,6 +34,10 @@ A case that you submit goes to a government agency. You cannot take it back.
 - `complainerr submit` posts the case only when you add `--send`.
 - `SispaaClient.submit()` also sends nothing unless you give `send=True`.
 
+## Personal details (profile)
+
+Put your personal details in `~/.config/complainerr/profile.toml` (or the file that `$COMPLAINERR_PROFILE` names). Copy `profile.example.toml` to start. The values become the defaults of `submit`, so you do not type them each time. Do not put the real file in git. It holds your ID number.
+
 ## Install
 
 ```sh

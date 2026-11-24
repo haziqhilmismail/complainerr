@@ -2,7 +2,7 @@
 name = "complainerr"
 version = "0.1.0"
 description = "CLI to file complaints (aduan, cadangan, penghargaan) on Malaysian SISPAA agency sites"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = ["requests>=2.28", "click>=8.1"]
 
 [project.optional-dependencies]
