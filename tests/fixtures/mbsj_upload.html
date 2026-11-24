@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-78176811-2', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+<script type="text/javascript" src="https://mbsj.spab.gov.my/eApps/web/js/common/pageAccessCtrl.js"></script>
+<script type="text/javascript" src="https://mbsj.spab.gov.my/eApps/web/js/common/winPopupCtrl.js"></script>
+<script type="text/javascript" src="https://mbsj.spab.gov.my/eApps/web/js/common/util.js"></script>
+<script type="text/javascript" src="https://mbsj.spab.gov.my/eApps/web/js/common/validate.js"></script>
+<script type="text/javascript" src="https://mbsj.spab.gov.my/eApps/web/js/jquery/jquery-1.8.2.min.js"></script>
+<script type="text/javascript" src="https://mbsj.spab.gov.my/eApps/web/js/jquery/ui/datepicker/jquery.ui.datepicker-en.js"></script>
+<script type="text/javascript" src="https://mbsj.spab.gov.my/eApps/web/js/jquery/ui/timepicker/jquery-ui-timepicker-addon.js"></script>
+<script type="text/javascript" src="https://mbsj.spab.gov.my/eApps/web/js/jquery/ui/timepicker/jquery-ui-sliderAccess.js"></script>
+<script type="text/javascript" src="https://mbsj.spab.gov.my/eApps/web/js/jquery/ui/fancyBoxMouseWheel.js"></script>
+<script type="text/javascript" src="https://mbsj.spab.gov.my/eApps/web/js/jquery/ui/fancyBox.js"></script>
+<script type="text/javascript" src="https://mbsj.spab.gov.my/eApps/web/js/jquery/ui/jquery.iframe-auto-height.js"></script>
+<script type="text/javascript" src="https://mbsj.spab.gov.my/eApps/web/js/jquery/ui/start/jquery-ui-1.9.1.custom.min.js"></script>
+<script type="text/javascript" src="https://mbsj.spab.gov.my/eApps/web/js/jquery/ui/jquery.dynatree.js"></script>
+<script type="text/javascript" src="https://mbsj.spab.gov.my/eApps/web/js/jquery/ui/jquery.browser.js"></script>
+<script type="text/javascript" src="https://mbsj.spab.gov.my/eApps/web/js/jquery/ui/jquery.cookie.js"></script>
+<script type="text/javascript" src="https://mbsj.spab.gov.my/eApps/web/js/jquery/jquery-te-1.0.6.min.js"></script>
+<script type="text/javascript" src="https://mbsj.spab.gov.my/eApps/web/js/ckeditor/ckeditor.js"></script>
+
+<!--	Tooltips	-->
+<script type="text/javascript" src="https://mbsj.spab.gov.my/eApps/web/js/common/dw_event.js"></script>
+<script type="text/javascript" src="https://mbsj.spab.gov.my/eApps/web/js/common/dw_viewport.js"></script>
+<script type="text/javascript" src="https://mbsj.spab.gov.my/eApps/web/js/common/dw_tooltip.js"></script>
+
+
+<script>
+// Init Tooltips
+Tooltip.init();
+</script>
+
+<style type="text/css">
+div#tipDiv 
+{
+	position: absolute;
+	visibility: hidden;
+	left: 0px;
+	top: 0px;
+	z-index: 10000;
+	background-color: #e8eef7;
+	border: 1px solid #668cd9;
+	width: 300px;
+	padding: 6px;
+	color: #ffffff;
+	font-size: 11px;
+	line-height: 1.3;
+	filter: alpha(opacity=80);
+	opacity: 0.8;
+	-moz-opacity:0.8;
+}
+div#tipDiv a:link { color:0101FF; }
+div#tipDiv a:visited { color:#339; }
+</style>
+
+
+<html lang="en">
+<head>
+	<title>Upload File</title>
+
+	<base href="https://mbsj.spab.gov.my/eApps/">
+
+	<link rel="stylesheet" href="https://mbsj.spab.gov.my/eApps/web/style/common/std.css" type="text/css">
+	<link rel="stylesheet" href="https://mbsj.spab.gov.my/eApps/web/themes/sdmsblue/style/std.css" type="text/css">
+	<link rel="stylesheet" href="https://mbsj.spab.gov.my/eApps/web/style/jquery/ui/start/jquery-ui-1.9.1.custom.css" type="text/css">
+	<link rel="stylesheet" href="https://mbsj.spab.gov.my/eApps/web/style/jquery/ui/fancyBox.css" type="text/css">
+	<link rel="stylesheet" href="https://mbsj.spab.gov.my/eApps/web/style/jquery/ui/ui.dynatree.css" type="text/css">
+	<link rel="stylesheet" href="https://mbsj.spab.gov.my/eApps/web/style/jquery/jquery-te-Style.css" type="text/css">
+	<link rel="SHORTCUT ICON" href="/eApps/atchmgmt/../web/imgs/common/favicon.gif">
+
+	<meta http-equiv="Pragma" content="no-cache">
+	<meta http-equiv="Expires" content="0">
+	<meta http-equiv="Page-Enter" content="blendTrans(Duration=0.0)">
+  	<meta http-equiv="Page-Exit"  content="blendTrans(Duration=0.0)">
+
+	
+</head>
+
+<script type="text/javascript">
+//Return control of $ 
+$.noConflict();
+
+function initToolTips()
+{
+	Tooltip.init();
+}
+
+function resetSession()
+{
+	
+	if (window.opener != null)
+		window.opener.resetSession();
+	
+}
+
+// Trap Alert, Confirm
+//	function trapAlert(msg)
+//	{
+//		grayOut(true); 
+//		xAlert(msg);
+//		grayOut(false);
+//	}
+	
+//	function trapConfirm(msg)
+//	{
+//		grayOut(true); 
+//		xConfirm(msg);
+//		grayOut(false);
+//	}
+	
+	// Assign reference to window.alert to another variable
+//	var xAlert = window.alert;
+//	var xConfirm = window.confirm;
+	
+	// Re-assign window.alert
+//	window.alert = trapAlert;
+//	window.confirm = trapConfirm;
+
+</script>
+
+<body marginwidth="0" marginheight="0" topmargin="0" leftmargin="0" onload="initToolTips()" onkeypress="resetSession()" onmousemove="resetSession()" onclick="resetSession()">
+<table align="center" border="0" width="100%" cellpadding="0" cellspacing="0">
+<tr>
+	<td style="vertical-align:top;">
+    	
+
+
+
+
+<script language=javascript>
+	function switchAtchTyp(typ)
+	{
+		if (typ == "general")
+		{
+			document.getElementById("general").style.display = "block";
+			document.getElementById("letter").style.display = "none"; 
+			document.getElementById("group").style.display = "none";
+		}
+		else if (typ == "group")
+		{
+			document.getElementById("general").style.display = "none";
+			document.getElementById("letter").style.display = "none"; 
+			document.getElementById("group").style.display = "block";
+		}
+		else
+		{
+			document.getElementById("letter").style.display = "block";
+			document.getElementById("general").style.display = "none";  
+			document.getElementById("group").style.display = "none";
+		}
+	}
+	
+	function confirmTrash ( faGrp, fileId, docName )
+	{
+		var param = "&totSize="+document.forms[0].totSize.value+"&src="+document.forms[0].src.value;
+		
+			param += "&src="+document.forms[0].src.value;
+		
+		
+		
+		
+		
+			param += "&fcntElementId="+document.forms[0].fcntElementId.value;
+		
+		
+		
+			param += "&flstElementId="+document.forms[0].flstElementId.value;
+		
+
+		param += "&faGrp="+faGrp;
+		
+		if (confirm('Are you sure to remove this attachment file? File Name : ' + docName))
+		{
+			window.location.href="/eApps/atchmgmt/FileAtch/trash.do?faIid=" + fileId + param ;
+		}	
+	}
+	
+	function closeWin()
+	{
+		
+
+		
+			var elementObj=window.opener.document.getElementById? window.opener.document.getElementById("fileCnt"): window.opener.document.all.fileCnt;
+			if (elementObj != null)
+				elementObj.innerHTML=document.forms[0].reccnt.value;
+			
+
+		
+
+		
+			var elementObj=window.opener.document.getElementById? window.opener.document.getElementById("fileList"): window.opener.document.all.fileList;
+			
+		
+	}
+	
+	function chkUploadFile(atchTyp)
+	{
+		if (atchTyp == 'ATCH')
+		{
+			if (document.forms[0].faDocName.value == '')
+			{
+				alert('No file selected for upload');
+				return false;
+			}
+			
+			atchLoadDiv = document.getElementById('loadImgAtch');
+			atchDiv = document.getElementById('btnAtch');
+			
+			atchLoadDiv.style.display = "block";
+			atchDiv.style.display = "none";
+		}
+		else if (atchTyp == 'GRP')
+		{			
+			grpLoadDiv = document.getElementById('loadImgGrp');
+			grpDiv = document.getElementById('btnGrp');
+			
+			grpLoadDiv.style.display = "block";
+			grpDiv.style.display = "none";
+		}
+		else if (atchTyp == 'LTR')
+		{
+			if (document.forms[0].faLtrName.value == '')
+			{
+				alert('No file selected for upload');
+				return false;
+			}
+			
+			ltrLoadDiv = document.getElementById('loadImgLtr');
+			ltrDiv = document.getElementById('btnLtr');
+			
+			ltrLoadDiv.style.display = "block";
+			ltrDiv.style.display = "none";
+		}
+
+		document.forms[0].submit();
+	}	
+	
+	function popUpWindowDownload(pathUrl, fileName, contentType)
+	{	
+		var urlajax = "/eApps/sdmscase/SdmsCase/ajaxGenAtchPath.do";
+		
+		if (document.forms[0].src.value == 'SDMSCOMM' || document.forms[0].src.value == 'SDMSPOOL')
+			urlajax = "/eApps/sdmscasepool/SdmsCasePool/ajaxGenAtchPathCasePool.do";
+	
+	    jQuery.ajax({
+			url: urlajax,
+			dataType: 'text',
+			type: 'POST',
+			data: 'fileName=' + encodeURIComponent(fileName) + '&pathUrl=' + encodeURIComponent(pathUrl) + '&contentType=' + encodeURIComponent(contentType),
+			success: function(data)
+	        {
+			    var popwin = window.open(data,'WinDownload','width=100,height=100,resizable=yes,scrollbars=yes');
+			    popwin.focus();
+			}
+		});
+	}
+	
+	function popUpLtrList()
+	{
+		var url = '/eApps/sdmsaction/SdmsAction/listltr.do?fldTarget=rpDetail&fldSubject=rpSubject&fldRichText=Y&caseId=';
+		popUpWin('WinPopupLtrList', 480, 500, 'resizable=yes,scrollbars=yes,statusbar=yes,status=yes', url);
+	}
+
+	function popUpGrpList()
+	{
+		var url = '/eApps/atchmgmt/FileAtch/listGrp.do?grpId=grpId';
+		popUpWin('WinPopupGrpList', 480, 500, 'resizable=yes,scrollbars=yes,statusbar=yes,status=yes', url);
+	}
+
+	function checkFileSizeIE()
+    {
+     var myFSO = new ActiveXObject("Scripting.FileSystemObject");
+     var filepath = document.uploadForm.faDocName.value;
+     var thefile = myFSO.getFile(filepath);
+     var size = thefile.size;
+     alert(size); 
+    }
+
+	function removeGroup(id)
+	{
+		  jQuery("#remove"+id).remove(); 
+	}
+
+	window.onload = closeWin;
+</script>
+
+<form name="uploadForm" method="post" action="/eApps/atchmgmt/FileAtch/upload.do" enctype="multipart/form-data"><div><input type="hidden" name="org.apache.struts.taglib.html.TOKEN" value="d29c5e79690abac41c43ae97f259ef46"></div>
+<input type="hidden" name="src" value="SDMSPOOL">
+<input type="hidden" name="rpRptId" value="">
+<!-- <input type="hidden" name="faLtrDetail" value=""> -->
+<input type="hidden" name="caseId" value="">
+<input type="hidden" name="fcntFldName" value="">
+<input type="hidden" name="fcntElementId" value="fileCnt">
+<input type="hidden" name="flstFldName" value="">
+<input type="hidden" name="flstElementId" value="fileList">
+<input type="hidden" name="atchTypList" value="">
+
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0" collapse>
+  	<tr class="popupWinTtlBar">
+		<td>
+			&nbsp;
+			File Attachment
+  		</td>
+		<td align=right>
+		    <input type="button" name="btnClose" value="Close" onclick="javascript:window.close();" onmouseover="this.className='hlbutton'" onmouseout="this.className='button'" class="button">&nbsp;
+  		</td>  		
+  	</tr>
+</table>
+<table style="BACKGROUND-REPEAT: repeat" cellSpacing=0 cellPadding=0 width="100%" align=center background="https://mbsj.spab.gov.my/eApps/web/imgs/common/navbar_gradient.gif" border=0>
+	<tr height="5">
+   		<td></td>
+    </tr>
+</table>
+
+
+
+
+	
+		<div id="general" style="display:block;">
+	
+	
+
+<table width="98%" align="center" cellpadding="0" cellspacing="0" border="0">
+<tr valign="top">
+	<td class="label" width="13%">
+		File Name
+	</td>
+	<td class="labelcolon" width="2%">:</td>
+	<td class="data" width="85%">
+		<input type="file" name="faDocName" size="50" value="" class="input">
+	</td>
+</tr>
+<tr valign="top">
+	<td class="label">
+		Subject
+	</td>
+	<td class="labelcolon">:</td>
+	<td class="data">
+		<input type="text" name="faKeyword" maxlength="255" size="50" value="" class="input">
+	</td>
+</tr>
+<tr height="10">
+	<td colspan="3"></td>
+</tr>
+<tr>
+	<td></td>
+	<td></td>
+	<td style="padding-right:200px" align="center">
+		<div style="display: block;" id="btnAtch">
+			<table width="100%" align="center" cellpadding="0" cellspacing="0" border="0">
+				<tr>
+					<td align="center">
+						<input type="button" name="btnSubmitAtch" value="Upload" onclick="chkUploadFile('ATCH')" onmouseover="this.className='hlbutton'" onmouseout="this.className='button'" class="button">	
+					</td>
+				</tr>
+			</table>
+		</div>
+	</td>
+</tr>
+<tr height="1">
+	<td></td>
+	<td></td>
+	<td style="padding-right:200px" align="center">
+		<div style="display: none;" id="loadImgAtch">
+		<table width="100%" align="center" cellpadding="0" cellspacing="0" border="0">
+			<tr>
+				<td align="center" class="label">
+					<img src="https://mbsj.spab.gov.my/eApps/web/imgs/common/rotate.gif" class="icon" align="absMiddle">
+					Loading...
+				</td>
+			</tr>
+		</table>
+		</div>
+	</td>
+</tr>
+<tr>
+	<td colspan="3" height="10">
+		<!-- Find out if the maximum length has been exceeded. -->
+		
+  		
+	</td>
+</tr>
+<tr>
+   	<td colspan="3" class="label">
+		
+			<font color="#FF0000">*</font>
+			Note: The maximum file size is 10MB.
+		
+   	</td>
+</tr>
+</table>
+</div>
+<br>
+
+
+
+	
+	
+		<div id="group" style="display:none;">
+	
+
+
+<table width="98%" align="center" cellpadding="0" cellspacing="0" border="0">
+<tr valign="top">
+	<td class="label" width="13%">
+		File Name
+	</td>
+	<td class="labelcolon" width="2%">:</td>
+	<td class="data" width="85%">
+		<input type="hidden" name="faIid" value="">
+		<input type="text" name="faOriName" size="50" value="" class="input">
+		<input type="button" name="btnBrowse" value="Browse" onclick="javascript:popUpGrpList()" onmouseover="this.className='hlbutton'" onmouseout="this.className='button'" style="width:80" class="button">
+	</td>
+</tr>
+<tr valign="top">
+	<td class="label">
+		Subject
+	</td>
+	<td class="labelcolon">:</td>
+	<td class="data">
+		<input type="text" name="faGrpKeyword" maxlength="255" size="50" value="" class="input">
+	</td>
+</tr>
+<tr height="10">
+	<td colspan="3"></td>
+</tr>
+<tr>
+	<td></td>
+	<td></td>
+	<td style="padding-right:200px" align="center">
+		<div style="display: block;" id="btnGrp">
+		<table width="100%" align="center" cellpadding="0" cellspacing="0" border="0">
+			<tr>
+				<td align="center">
+					<input type="button" name="btnSubmitLtr" value="Upload" onclick="chkUploadFile('GRP')" onmouseover="this.className='hlbutton'" onmouseout="this.className='button'" class="button">
+				</td>
+			</tr>
+		</table>		
+		</div>
+	</td>
+</tr>
+<tr height="1">
+	<td></td>
+	<td></td>
+	<td style="padding-right:200px" align="center">
+		<div style="display: none;" id="loadImgGrp">
+		<table width="100%" align="center" cellpadding="0" cellspacing="0" border="0">
+			<tr>
+				<td align="center" class="label">
+					<img src="https://mbsj.spab.gov.my/eApps/web/imgs/common/rotate.gif" class="icon" align="absMiddle">
+					Loading...
+				</td>
+			</tr>
+		</table>		
+		</div>
+	</td>
+</tr>
+<tr>
+	<td colspan="3" height="10">
+		<!-- Find out if the maximum length has been exceeded. -->
+		
+  		
+	</td>
+</tr>
+<tr>
+   	<td colspan="3" class="label">
+		
+			<font color="#FF0000">*</font>
+			Note: The maximum file size is 10MB.
+		
+   	</td>
+</tr>
+</table>
+</div>
+<br>
+
+
+
+
+
+
+
+<input type="hidden" name="reccnt" value="0">
+<input type="hidden" name="totSize" value="">
+</form>
+
+    </td>
+</tr>
+</table>
+</body>
+</html>
+
