@@ -4,16 +4,15 @@ from pathlib import Path
 import pytest
 
 from complainerr import Case, CaseType, Category, Requester, SispaaClient, SispaaError
-from complainerr.client import ADD, CHECK, LOGIN_PAGE, SITES, UPLOAD_PAGE, parse_form
+from complainerr.client import ADD, CHECK, SITES, UPLOAD_PAGE, parse_form
 
 FIXTURES = Path(__file__).parent / "fixtures"
-ADD_URL, CHECK_URL, LOGIN_PAGE_URL = (SITES["jpa"] + p for p in (ADD, CHECK, LOGIN_PAGE))
+ADD_URL, CHECK_URL = (SITES["jpa"] + p for p in (ADD, CHECK))
 MBSJ_ADD_URL = SITES["mbsj"] + ADD
 PAGES = {
     MBSJ_ADD_URL: (FIXTURES / "mbsj_add.html").read_text(encoding="latin-1"),
     SITES["mbsj"] + UPLOAD_PAGE: (FIXTURES / "mbsj_upload.html").read_text(encoding="latin-1"),
     ADD_URL: (FIXTURES / "add.html").read_text(encoding="latin-1"),
-    LOGIN_PAGE_URL: (FIXTURES / "publicLogin.html").read_text(encoding="latin-1"),
     CHECK_URL: (FIXTURES / "check.html").read_text(encoding="latin-1"),
 }
 TOKEN = "5ea58c51441bba7643d9cad8a4748ac3"
@@ -32,7 +31,7 @@ class FakeSession:
     """Serves saved pages for GETs and records POSTs; never touches the network."""
 
     def __init__(self, post_text="", get_text=None):
-        self.posts, self.gets = [], []
+        self.posts, self.gets, self.files = [], [], {}
         # post_text: one reply for every POST, or {url: reply}
         self.post_text, self.get_text = post_text, get_text or {}
 
@@ -42,7 +41,8 @@ class FakeSession:
 
     def post(self, url, data=None, files=None, timeout=None):
         self.posts.append((url, data))
-        self.files = {k: (name, f.read()) for k, (name, f) in (files or {}).items()} or getattr(self, "files", {})
+        if files:
+            self.files = {k: (name, f.read()) for k, (name, f) in files.items()}
         text = self.post_text
         return FakeResponse(text.get(url, "") if isinstance(text, dict) else text)
 
@@ -53,9 +53,8 @@ def client(site="jpa", **kw):
     return c
 
 
-def test_parse_form_scrapes_hidden_fields_and_action():
+def test_parse_form_scrapes_hidden_fields():
     form = parse_form(PAGES[ADD_URL])
-    assert form.action == "/eApps/sdmscasepool/SdmsCasePool/save.do;jsessionid=CxpANBO7a-I7+6U9wIZPS0bp"
     f = form.fields
     assert f["org.apache.struts.taglib.html.TOKEN"] == TOKEN
     assert (f["strutsAction"], f["cpTargetHost"], f["newLogin"], f["google_recaptcha"]) == ("1", "28349", "N", "Y")
@@ -105,7 +104,7 @@ def test_leaf_category_empty_body_has_no_children():
 ])
 def test_build_payload_per_case_type(case_type, cp_typ):
     c = client()
-    p = c.build_payload(Case(case_type, "Gaji lewat", "Gaji bulan Oktober belum masuk.", "2013", REQUESTER))
+    p = c.build_payload(Case(case_type, "Gaji lewat", "Gaji bulan Oktober belum masuk.", REQUESTER, "2013"))
     assert {k: p[k] for k in (
         "cpTyp", "cpSubject", "cpDetail", "cpCategory", "cpTarget", "cpTargetHost",
         "org.apache.struts.taglib.html.TOKEN", "strutsAction", "google_recaptcha",
@@ -123,12 +122,12 @@ def test_build_payload_per_case_type(case_type, cp_typ):
 @pytest.mark.parametrize("category_id", ["2012:N", "2012", "2017"])
 def test_build_payload_rejects_group_category(category_id):
     with pytest.raises(SispaaError, match=f"category {category_id} is a group"):
-        client().build_payload(Case(CaseType.ADUAN, "s", "d", category_id, REQUESTER))
+        client().build_payload(Case(CaseType.ADUAN, "s", "d", REQUESTER, category_id))
 
 
 def test_submit_dry_run_sends_nothing():
     c = client()
-    result = c.submit(Case(CaseType.ADUAN, "s", "d", "2013", REQUESTER), recaptcha_token="tok")
+    result = c.submit(Case(CaseType.ADUAN, "s", "d", REQUESTER, "2013"), recaptcha_token="tok")
     assert result.response is None
     assert result.payload["g-recaptcha-response"] == "tok"
     assert c.session.posts == []
@@ -138,39 +137,29 @@ def test_submit_dry_run_sends_nothing():
 def test_submit_send_without_token_refuses_before_posting():
     c = client()
     with pytest.raises(SispaaError, match="needs a reCAPTCHA token"):
-        c.submit(Case(CaseType.ADUAN, "s", "d", "2013", REQUESTER), send=True)
+        c.submit(Case(CaseType.ADUAN, "s", "d", REQUESTER, "2013"), send=True)
     assert c.session.posts == []
 
 
 def test_submit_send_stops_when_site_rejects_token():
     c = client(get_text={"https://jpa.spab.gov.my/eApps/system/ajaxverifyrecaptcha.do": "false"})
     with pytest.raises(SispaaError, match="rejected the reCAPTCHA token"):
-        c.submit(Case(CaseType.ADUAN, "s", "d", "2013", REQUESTER), recaptcha_token="junk", send=True)
+        c.submit(Case(CaseType.ADUAN, "s", "d", REQUESTER, "2013"), recaptcha_token="junk", send=True)
     assert c.session.posts == []
 
 
 def test_submit_send_posts_payload_to_save():
     c = client(post_text="<html><body><p>No. Rujukan: JPA/123</p></body></html>",
                get_text={"https://jpa.spab.gov.my/eApps/system/ajaxverifyrecaptcha.do": "true"})
-    result = c.submit(Case(CaseType.ADUAN, "s", "d", "2013", REQUESTER), recaptcha_token="good", send=True)
+    result = c.submit(Case(CaseType.ADUAN, "s", "d", REQUESTER, "2013"), recaptcha_token="good", send=True)
     assert result.response == "No. Rujukan: JPA/123"
     [(url, data)] = c.session.posts
     assert url == "https://jpa.spab.gov.my/eApps/sdmscasepool/SdmsCasePool/save.do"
     assert (data["g-recaptcha-response"], data["cpTarget"]) == ("good", "28349")
 
 
-def test_login_posts_credentials_with_fresh_token():
-    c = client(post_text="<html>Selamat datang</html>")
-    c.login("ali", "secret")
-    [(url, data)] = c.session.posts
-    assert url == "https://jpa.spab.gov.my/eApps/sdmscasepool/SdmsCasePool/publicLoginCheck.do"
-    assert (data["org.apache.struts.taglib.html.TOKEN"], data["rqLoginId"], data["rqLoginPwd"]) == (
-        "c57634f4c140426d7fd6d2806ef6c11c", "ali", "secret")
 
 
-def test_login_failure_when_form_comes_back():
-    with pytest.raises(SispaaError, match="login failed"):
-        client(post_text=PAGES[LOGIN_PAGE_URL]).login("ali", "wrong")
 
 
 def test_status_posts_check_form():
@@ -185,15 +174,8 @@ def test_status_posts_check_form():
     }
 
 
-def test_logged_in_form_omits_requester_fields():
-    logged_in = PAGES[ADD_URL].replace('name="rqName"', 'name="xName"')
-    p = client(get_text={ADD_URL: logged_in}).build_payload(Case(CaseType.CADANGAN, "s", "d", "2013"))
-    assert (p["cpTyp"], p["cpCategory"], "rqName" in p) == ("22", "2013", False)
 
 
-def test_anonymous_form_needs_requester():
-    with pytest.raises(SispaaError, match="needs a requester"):
-        client().build_payload(Case(CaseType.ADUAN, "s", "d", "2013"))
 
 
 MBSJ = "https://mbsj.spab.gov.my/eApps/sdmscasepool/SdmsCasePool"
@@ -212,7 +194,7 @@ def test_mbsj_payload_has_location_and_no_category():
 
 def test_mbsj_needs_location():
     with pytest.raises(SispaaError, match="needs a location"):
-        client("mbsj").build_payload(Case(CaseType.ADUAN, "s", "d", requester=REQUESTER))
+        client("mbsj").build_payload(Case(CaseType.ADUAN, "s", "d", REQUESTER))
 
 
 def test_type_not_on_site_is_rejected():

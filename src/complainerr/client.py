@@ -5,11 +5,11 @@ from __future__ import annotations
 import html
 import json
 import re
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from enum import IntEnum
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import Callable
 
 import requests
 
@@ -22,8 +22,6 @@ CASEPOOL = "/sdmscasepool/SdmsCasePool"
 ADD = f"{CASEPOOL}/add.do"
 SAVE = f"{CASEPOOL}/save.do"
 CHILDREN = f"{CASEPOOL}/loadChildListAjax.do"
-LOGIN_PAGE = f"{CASEPOOL}/publicLogin.do"
-LOGIN = f"{CASEPOOL}/publicLoginCheck.do"
 CHECK = f"{CASEPOOL}/check.do"
 SEND_OTP = f"{CASEPOOL}/ajaxsendOTP.do"
 VERIFY_OTP = f"{CASEPOOL}/ajaxverifyOTP.do"
@@ -76,8 +74,8 @@ class Case:
     type: CaseType
     subject: str
     detail: str
+    requester: Requester
     category_id: str | None = None  # JPA only; MBSJ has no categories
-    requester: Requester | None = None  # None when logged in: the account supplies it
     location: str | None = None  # MBSJ only: where the problem is
 
 
@@ -91,7 +89,6 @@ class Submission:
 class Form:
     """The successful controls of the first <form>, as a browser would post them."""
 
-    action: str = ""
     fields: dict[str, str] = field(default_factory=dict)
     options: dict[str, list[tuple[str, str]]] = field(default_factory=dict)
 
@@ -113,7 +110,6 @@ class _FormParser(HTMLParser):
         a = {k: v or "" for k, v in attrs}
         if tag == "form":
             self._in_form = True
-            self.form.action = a.get("action", "")
         if not self._in_form:
             return
         name = a.get("name")
@@ -196,16 +192,6 @@ class SispaaClient:
             options = [(item["value"], item["label"]) for item in json.loads(r.text or "[]")]
         return [Category.parse(value, label) for value, label in options if value]
 
-    def login(self, login_id: str, password: str) -> None:
-        """Log in as a registered user. Verified live: success redirects to viewList.do.
-
-        A failed login is assumed when the response still shows the password field.
-        """
-        form = parse_form(self._get(LOGIN_PAGE).text)
-        data = form.fields | {"rqLoginId": login_id, "rqLoginPwd": password}
-        if 'name="rqLoginPwd"' in self._post(LOGIN, data).text:
-            raise SispaaError("login failed: the site showed the login form again")
-
     def build_payload(self, case: Case) -> dict[str, str]:
         """Fetch a fresh add.do form and fill it in for `case`. Sends nothing."""
         page = self._get(ADD).text
@@ -234,11 +220,7 @@ class SispaaClient:
             if not case.location:
                 raise SispaaError("this site needs a location")
             fields["cpLocation"] = case.location
-        if "rqName" not in form.fields:  # logged-in form: the account is the requester
-            return fields
         r = case.requester
-        if r is None:
-            raise SispaaError("an anonymous case needs a requester; give one or log in")
         requester = {
             "rqName": r.name,
             "rqDocTyp": r.doc_type,
@@ -254,7 +236,7 @@ class SispaaClient:
         case: Case,
         recaptcha_token: str | None = None,
         otp: Callable[[str], str] | None = None,
-        attachments: list[Path] = (),
+        attachments: Iterable[Path] = (),
         send: bool = False,
     ) -> Submission:
         """Build the payload; post it to save.do only when `send` is True.
@@ -263,7 +245,7 @@ class SispaaClient:
         token from a real browser solve. This library never solves or skips it.
         If the form asks for an email OTP (MBSJ), the site emails a code and `otp(email)`
         must return it.
-        The save.do response is UNVERIFIED: it comes back as page text, not parsed.
+        The save.do reply comes back as page text; the reference ID is not extracted.
         """
         payload = self.build_payload(case)
         captcha = payload.get("google_recaptcha") == "Y"
@@ -286,10 +268,10 @@ class SispaaClient:
         return Submission(payload, page_text(self._post(SAVE, payload).text))
 
     def upload(self, path: Path) -> None:
-        """Attach a file (max 10 MB) to the case in this session. UNVERIFIED response."""
+        """Attach a file (max 10 MB) to the case in this session."""
         form = parse_form(self._get(UPLOAD_PAGE).text)
         with open(path, "rb") as f:
-            self._post(UPLOAD, form.fields | {"faKeyword": ""}, files={"faDocName": (Path(path).name, f)})
+            self._post(UPLOAD, form.fields | {"faKeyword": ""}, files={"faDocName": (path.name, f)})
 
     def _verify_otp(self, email: str, otp: Callable[[str], str]) -> dict[str, str]:
         email_key, mobile_key, extra_key, extra_value = self._otp_params

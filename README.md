@@ -51,8 +51,6 @@ complainerr submit --type aduan --subject "Gaji lewat" --detail "..." --category
   --name "ALI BIN ABU" --doc-no 900101145555 --mobile 0123456789 --email ali@example.com
 # Add --recaptcha-token TOKEN --send to really submit.
 
-export SISPAA_LOGIN_ID=... SISPAA_PASSWORD=...
-complainerr login                     # test the login only
 complainerr submit ...                # with these set, submit logs in first
 
 complainerr status CASE_ID --case-password PW --doc-no 900101145555
@@ -83,17 +81,13 @@ result = client.submit(case)          # dry run: result.payload, result.response
 5. If the form has `google_recaptcha=Y`, the client sends `GET /eApps/system/ajaxverifyrecaptcha.do` with your token. If the site does not reply `true`, the client stops.
 6. The client posts the payload to `save.do` and returns the response page as plain text.
 
-## How login works
+## Guest cases only
 
-1. The client sends `GET /eApps/sdmscasepool/SdmsCasePool/publicLogin.do` and reads the Struts token.
-2. The client posts `rqLoginId`, `rqLoginPwd` and the token to `publicLoginCheck.do`. That page has no captcha.
-3. If the login is correct, the site redirects to `viewList.do` (the case list). The client keeps the session cookie for the next calls.
-4. The logged-in `add.do` form has no name, ID or contact fields. The account supplies them, so `Requester` is not necessary.
-5. The logged-in form also has `google_recaptcha=Y`. A logged-in submit needs a reCAPTCHA token too.
+Complainerr files every case as a guest (`newLogin=N`). It does not log in to a SISPAA account. A guest case is linked to the name, ID number and email in the form, not to an account, so it does not show on an account dashboard. To see a guest case, use the reference ID and the ticket password that the site sends by email (`complainerr status`).
 
 ## The reCAPTCHA limit
 
-The new-case form uses Google reCAPTCHA v2, for anonymous and logged-in users (site key `6LdhqcEUAAAAAHJ2qBB1S_PswJpXWZsLBdJKnvE4`). This library does not solve reCAPTCHA and does not go around it. To send a case, solve the captcha in a browser and give the token with `--recaptcha-token`. A token is valid for approximately two minutes and for one use only. If you do not give a token, `--send` stops with an error before it posts.
+The JPA new-case form uses Google reCAPTCHA v2 (site key `6LdhqcEUAAAAAHJ2qBB1S_PswJpXWZsLBdJKnvE4`). This library does not solve reCAPTCHA and does not go around it. To send a case, solve the captcha in a browser and give the token with `--recaptcha-token`. A token is valid for approximately two minutes and for one use only. If you do not give a token, `--send` stops with an error before it posts.
 
 ## Verified and unverified
 
@@ -102,14 +96,11 @@ Verified against the live site (read-only):
 - `add.do` returns the form, a fresh Struts token, `cpTargetHost=28349` and `google_recaptcha=Y`.
 - `loadChildListAjax.do` returns the child categories as JSON. A value such as `2032:N` is a group. The `level` value did not change the result for parent 2012, so the client always sends `level=2`.
 - `ajaxverifyrecaptcha.do` replies `false` for a junk token.
-- Login: `publicLoginCheck.do` redirects to `viewList.do` when the login is correct.
-- The logged-in `add.do` still has `google_recaptcha=Y` and calls `verifyReCaptcha()`. It has no `rqName` and other requester fields.
 
 Not verified, because a test would submit a real case:
 
 - The response of `save.do`. The client returns the page as plain text and does not find the case number in it.
 - That `save.do` accepts the payload. The browser also sends `cpCategory1`, `cpCategory2` and so on with the cascade values. The client sends only `cpCategory` with the final id, and `cpCategory1` stays empty.
-- The response to a wrong password. The client thinks that the login failed if the response shows the password field again.
 - The response of `check.do`. `status` returns the page as plain text.
 - The `agreeTnc` value. The page JavaScript sets it to `true`, so the client sends `true`.
 - A deeper group id (below the top level) given without `:N` is not rejected by the client.
