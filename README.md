@@ -1,4 +1,4 @@
-<p align="center"><img src="logo.svg" width="128" alt="Complainerr logo: an angry face with a stacked bob haircut and a red speech bubble"></p>
+<p align="center"><img src="logo.svg" width="128" alt="Complainerr logo: an angry blond woman with a short bob and a fringe over one eye"></p>
 
 # Complainerr
 
