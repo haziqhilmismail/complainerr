@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Complainerr: an angry face with a stacked asymmetric bob and a red speech bubble with an exclamation mark">
+  <!-- Stacked bob: round volume on top, short choppy flicks on the left, long angled side on the right -->
+  <path fill="#B9862E" d="M36 84 L26 82 L32 76 L22 72 L31 67 L23 60 L33 56 C32 34 46 22 62 22 C82 22 98 36 98 56 L102 100 L84 92 L82 70 Z"/>
+  <path fill="#D9A441" d="M38 80 L30 76 L36 72 L28 66 L36 62 L30 56 L37 53 C38 36 50 27 63 27 C80 27 93 39 94 56 L98 96 L86 90 L84 68 Z"/>
+  <ellipse cx="60" cy="74" rx="22" ry="25" fill="#F4C7A1"/>
+  <!-- Side-swept fringe -->
+  <path fill="#D9A441" d="M37 62 C40 42 64 34 84 42 C92 46 96 54 96 62 C84 52 60 50 37 62 Z"/>
+  <!-- Chunky highlights -->
+  <path fill="none" stroke="#F6DC8E" stroke-width="4" stroke-linecap="round" d="M48 34 C56 29 68 29 76 32 M44 48 C54 42 68 40 80 43 M90 64 L93 88"/>
+  <!-- Angry brows, eyes and shouting mouth -->
+  <path fill="none" stroke="#2B2B2B" stroke-width="3.5" stroke-linecap="round" d="M44 64 L56 69 M76 64 L64 69"/>
+  <circle cx="51" cy="75" r="2.8" fill="#2B2B2B"/>
+  <circle cx="69" cy="75" r="2.8" fill="#2B2B2B"/>
+  <ellipse cx="60" cy="89" rx="7" ry="5" fill="#2B2B2B"/>
+  <!-- Complaint bubble -->
+  <circle cx="110" cy="22" r="15" fill="#E5484D"/>
+  <path fill="#E5484D" d="M98 29 L104 35 L92 40 Z"/>
+  <rect x="107.5" y="11" width="5" height="13" rx="2.5" fill="#FFFFFF"/>
+  <circle cx="110" cy="29.5" r="2.8" fill="#FFFFFF"/>
+</svg>

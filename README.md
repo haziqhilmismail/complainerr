@@ -1,3 +1,5 @@
+<p align="center"><img src="logo.svg" width="128" alt="Complainerr logo: an angry face with a stacked bob haircut and a red speech bubble"></p>
+
 # Complainerr
 
 Complainerr is a CLI (and a Python library) that files complaints on SISPAA, the Malaysian public complaint portal. Each agency runs its own copy of SISPAA. This library supports two copies:
