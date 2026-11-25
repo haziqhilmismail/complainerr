@@ -7,7 +7,7 @@ import json
 import re
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
-from enum import IntEnum
+from enum import Enum
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -17,11 +17,17 @@ import requests
 SITES = {
     "jpa": "https://jpa.spab.gov.my/eApps",
     "mbsj": "https://mbsj.spab.gov.my/eApps",
+    "kkr": "https://kkr.spab.gov.my/eApps",
+    "mbpj": "https://mbpj.spab.gov.my/eApps",
+    "jpj": "https://jpj.spab.gov.my/eApps",
+    "kpdn": "https://kpdn.spab.gov.my/eApps",
 }
 CASEPOOL = "/sdmscasepool/SdmsCasePool"
 ADD = f"{CASEPOOL}/add.do"
 SAVE = f"{CASEPOOL}/save.do"
 CHILDREN = f"{CASEPOOL}/loadChildListAjax.do"
+AGENCIES = f"{CASEPOOL}/loadTargetList.do"
+ZONES = f"{CASEPOOL}/ajaxloadcplocation.do"
 CHECK = f"{CASEPOOL}/check.do"
 SEND_OTP = f"{CASEPOOL}/ajaxsendOTP.do"
 VERIFY_OTP = f"{CASEPOOL}/ajaxverifyOTP.do"
@@ -30,6 +36,13 @@ UPLOAD_PAGE = "/atchmgmt/FileAtch/uploadNew.do?src=SDMSPOOL&fcntElementId=fileCn
 UPLOAD = "/atchmgmt/FileAtch/upload.do"
 # The OTP request uses parameter names that change on every page load, e.g.
 # data:'6419724=' + rqEmail +'&4710612='+rqMobile+'&492842=6187537'. Empty names mean no OTP.
+# A field that the page JS checks before submit: var field = "rqPhone"; var value = "Y";
+REQUIRED = re.compile(r'var field = "(\w+)";\s*var value = "Y"')
+# Fields that build_payload fills from the typed Case; `fields` may not override them.
+OWN_FIELDS = {"cpTyp": "--type", "cpSubject": "--subject", "cpDetail": "--detail", "cpTarget": "--agency",
+              "cpCategory": "--category", "cpLocation": "--location", "agreeTnc": "",
+              "rqName": "--name", "rqDocTyp": "--doc-type", "rqDocNo": "--doc-no", "rqTyp": "--requester-type",
+              "rqMobile": "--mobile", "rqPhone": "--mobile", "rqEmail": "--email"}
 OTP_PARAMS = re.compile(r"data:'(\d+)=' \+ rqEmail \+'&(\d+)='\+rqMobile\+'&(\d+)=(\d+)'")
 
 
@@ -37,17 +50,22 @@ class SispaaError(Exception):
     pass
 
 
-class CaseType(IntEnum):
-    ADUAN = 15  # complaint
-    APPEAL = 2044
-    CADANGAN = 22  # suggestion
-    PENGHARGAAN = 23  # compliment
-    PERTANYAAN = 21  # enquiry
-    PERMOHONAN = 2941  # application (MBSJ)
+class CaseType(Enum):
+    """The labels of the type on the form. Each site uses its own ids, e.g. aduan is 15 on JPA, 2005 on KKR."""
+
+    ADUAN = ("Aduan", "Complaint")
+    APPEAL = ("Appeal",)
+    CADANGAN = ("Cadangan", "Suggestion")
+    PENGHARGAAN = ("Penghargaan", "Appreciation")
+    PERTANYAAN = ("Pertanyaan", "Inquiry")
+    PERMOHONAN = ("Permohonan", "Application")
+    INTEGRITI = ("Integriti", "Integrity")  # KKR
 
 
 @dataclass(frozen=True)
 class Category:
+    """One choice in a lookup list: a category, an agency or a zone."""
+
     id: str
     label: str
     selectable: bool
@@ -75,8 +93,10 @@ class Case:
     subject: str
     detail: str
     requester: Requester
-    category_id: str | None = None  # JPA only; MBSJ has no categories
-    location: str | None = None  # MBSJ only: where the problem is
+    category_id: str | None = None  # when the form has categories (cpCategory1)
+    location: str | None = None  # when the form has cpLocation: where the problem is
+    agency: str | None = None  # when the form has cpTarget1: a sub-agency id; default is the site's own
+    fields: dict[str, str] = field(default_factory=dict)  # other form fields a site asks for, e.g. JPJ rqPostcode
 
 
 @dataclass(frozen=True)
@@ -185,51 +205,90 @@ class SispaaClient:
         """Top-level categories from add.do, or the children of `parent_id`."""
         if parent_id is None:
             options = parse_form(self._get(ADD).text).options.get("cpCategory1", [])
-        else:
-            # shortcut: level is fixed at 2; the live site returned the same list for 2 and 3.
-            r = self._post(CHILDREN, {"parentId": parent_id.split(":")[0], "dbComn": "N", "level": "2"})
-            # A leaf category answers with an empty body, not "[]".
-            options = [(item["value"], item["label"]) for item in json.loads(r.text or "[]")]
-        return [Category.parse(value, label) for value, label in options if value]
+            return [Category.parse(value, label) for value, label in options if value]
+        return self._children(CHILDREN, parent_id)
+
+    def agencies(self, parent_id: str | None = None) -> list[Category]:
+        """Sub-agencies under `parent_id`, or under the site's own agency."""
+        # The site answers with an HTML page instead of JSON until add.do has started the session.
+        form = self._form_with("cpTarget1", "agency")
+        return self._children(AGENCIES, parent_id or form.fields["cpTargetHost"])
+
+    def zones(self, term: str) -> list[Category]:
+        """MBPJ: the zones (field cpLocation2) whose name contains `term`, e.g. "ss" or "damansara"."""
+        self._form_with("cpLocation2", "zone")  # also starts the session; the site redirects without one
+        r = self._post(ZONES, {"cpLocation2Disp": term})
+        # No match answers [{"label": "Sorry, record not found...", "value": ""}].
+        return [Category(i["value"], i["label"], True) for i in json.loads(r.text or "[]") if i["value"]]
+
+    def _form_with(self, name: str, what: str) -> Form:
+        form = parse_form(self._get(ADD).text)
+        if name not in form.fields and name not in form.options:
+            raise SispaaError(f"this site has no {what} choice")
+        return form
+
+    def _children(self, path: str, parent_id: str) -> list[Category]:
+        # shortcut: level is fixed at 2; the live sites returned the same list for 2 and 3.
+        r = self._post(path, {"parentId": parent_id.split(":")[0], "dbComn": "N", "level": "2"})
+        # A leaf answers with an empty body, not "[]".
+        return [Category.parse(i["value"], i["label"]) for i in json.loads(r.text or "[]") if i["value"]]
 
     def build_payload(self, case: Case) -> dict[str, str]:
         """Fetch a fresh add.do form and fill it in for `case`. Sends nothing."""
         page = self._get(ADD).text
         form = parse_form(page)
-        types = {v for v, _ in form.options["cpTyp"] if v}
-        if str(int(case.type)) not in types:
+        cp_typ = next((v for v, label in form.options["cpTyp"] if v and label in case.type.value), None)
+        if cp_typ is None:
             raise SispaaError(f"this site has no case type {case.type.name.lower()}")
         m = OTP_PARAMS.search(page)
         self._otp_params = m.groups() if m else None
         fields = form.fields | {
-            "cpTyp": str(int(case.type)),
+            "cpTyp": cp_typ,
             "cpSubject": case.subject,
             "cpDetail": case.detail,
             "cpTarget": form.fields["cpTargetHost"],  # the page JS copies this before submit
             "agreeTnc": "true",  # setAgreeTnc() sets the checkbox value to "true"
         }
-        if "cpCategory1" in form.options:
-            if not case.category_id:
-                raise SispaaError("this site needs a category; see `complainerr categories`")
+        if "cpCategory1" in form.options and case.category_id:
             # shortcut: only top-level groups are known here; a deeper group id passed without ":N" gets through.
             top_groups = {v.split(":")[0] for v, _ in form.options["cpCategory1"] if v.endswith(":N")}
             if ":" in case.category_id or case.category_id in top_groups:
                 raise SispaaError(f"category {case.category_id} is a group; pick one of its children")
             fields["cpCategory"] = case.category_id
-        if "cpLocation" in form.fields:
-            if not case.location:
-                raise SispaaError("this site needs a location")
+        if "cpLocation" in form.fields and case.location:
             fields["cpLocation"] = case.location
+        if case.agency:
+            if "cpTarget1" not in form.options:
+                raise SispaaError("this site has no agency choice")
+            # shortcut: a group id (shown as [group] by `agencies`) is not rejected here; check it if one gets misrouted.
+            fields["cpTarget"] = case.agency
         r = case.requester
         requester = {
             "rqName": r.name,
             "rqDocTyp": r.doc_type,
             "rqDocNo": r.doc_no,
-            "rqTyp": r.type,  # JPA only
             "rqMobile": r.mobile,
+            "rqPhone": r.mobile,  # KKR and JPJ ask for a "Telephone" too
             "rqEmail": r.email,
         }
-        return fields | {k: v for k, v in requester.items() if k in form.fields}
+        if r.type in {v for v, _ in form.options.get("rqTyp", [])}:  # each site offers its own types
+            requester["rqTyp"] = r.type
+        fields |= {k: v for k, v in requester.items() if k in form.fields}
+        for name, value in case.fields.items():
+            if name in OWN_FIELDS:
+                raise SispaaError(f"{name} comes from {OWN_FIELDS[name] or 'the client'}, not from --field")
+            if name not in form.fields:
+                raise SispaaError(f"this site has no field {name}")
+            choices = [v for v, _ in form.options.get(name, []) if v]
+            if choices and value not in choices:
+                labels = ", ".join(f"{v} ({label})" for v, label in form.options[name] if v)
+                raise SispaaError(f"{name}={value} is not a choice; pick one of: {labels}")
+            fields[name] = value
+        missing = sorted({f for f in REQUIRED.findall(page) if f in form.fields and not fields[f]})
+        if missing:
+            how = ", ".join(OWN_FIELDS.get(f) or f"--field {f}=VALUE" for f in missing)
+            raise SispaaError(f"this site also needs {', '.join(missing)}; give {how}")
+        return fields
 
     def submit(
         self,

@@ -1,11 +1,32 @@
 # Complainerr
 
-Complainerr is a CLI (and a Python library) that files complaints on SISPAA, the Malaysian public complaint portal. Each agency runs its own copy of SISPAA. This library supports two copies:
+Complainerr is a CLI (and a Python library) that files complaints on SISPAA, the Malaysian public complaint portal. Each agency runs its own copy of SISPAA. This library supports these copies:
 
 | `--site` | Agency | URL | Before a submit |
 |---|---|---|---|
 | `jpa` (default) | Jabatan Perkhidmatan Awam | <https://jpa.spab.gov.my/eApps> | A category, and a reCAPTCHA token that you get in a browser |
 | `mbsj` | Majlis Bandaraya Subang Jaya | <https://mbsj.spab.gov.my/eApps> | A location, and a one-time code (OTP) that the site sends to your email |
+| `kkr` | Kementerian Kerja Raya (Ministry of Works: JKR, LLM, CIDB) | <https://kkr.spab.gov.my/eApps> | A location, an agency (optional), and a reCAPTCHA token that you get in a browser |
+| `mbpj` | Majlis Bandaraya Petaling Jaya | <https://mbpj.spab.gov.my/eApps> | A category, a location, a zone (`--field cpLocation2=ID`), and a reCAPTCHA token |
+| `jpj` | Jabatan Pengangkutan Jalan (road transport) | <https://jpj.spab.gov.my/eApps> | An agency (optional), your address, postcode, age band and gender (`--field`), and a reCAPTCHA token |
+| `kpdn` | Kementerian Perdagangan Dalam Negeri dan Kos Sara Hidup (prices, traders) | <https://kpdn.spab.gov.my/eApps> | An email OTP, as on MBSJ |
+
+## Fields that only some sites ask for
+
+Each site sets its own required fields. Before a dry run prints the payload, the client reads the required fields from the page JavaScript. If one is empty, it stops and names each one. Give each such field with `--field NAME=VALUE`. If the field is a drop-down list, the error names each valid choice. The "Telephone" field (`rqPhone`) gets your mobile number.
+
+```sh
+# JPJ: address, postcode, age band (2630 = 26-30) and gender
+complainerr --site jpj submit ... --field "rqAddr=1 Jalan X, Puchong" --field rqPostcode=47100 \
+  --field rqAge=2630 --field rqGender=M
+
+# MBPJ: find the zone id, then give it with the category and location
+complainerr --site mbpj zones "ss 2"       # 2669  ZON 8 > SS 2
+complainerr --site mbpj categories 2041   # the council's categories, e.g. 2048 parking
+complainerr --site mbpj submit ... --category 2048 --location "..." --field cpLocation2=2669
+```
+
+A dry run on 2026-11-25 against the real MBPJ, JPJ and KPDN sites gave the expected payload. No real case was sent to these 3 sites yet.
 
 ## MBSJ
 
@@ -21,6 +42,23 @@ The MBSJ form has no categories and no case type `appeal`. It has the case type 
 complainerr --site mbsj submit --type aduan --subject "..." --detail "..." --location "..." \
   --attach photo.png --name "..." --doc-no 900101145555 --mobile 0123456789 --email you@example.com
 ```
+
+## KKR
+
+KKR is the public complaint site of the Ministry of Works. The MyJalan web site (`myjalan.kkr.gov.my`) is for staff only, and the public uses the MyJalan mobile app. Use this site for federal roads instead.
+
+The KKR form has no categories. It needs `--location`. Its case types have other IDs than JPA and MBSJ (for example, `aduan` is 2005), and it has the case type `integriti`. The client finds each ID by the label on the form.
+
+`--agency` sends the case to one office. If you do not give it, the case goes to the ministry. List the offices with `agencies`:
+
+```sh
+complainerr --site kkr agencies          # JKR (28245), LLM (28246), CIDB, ...
+complainerr --site kkr agencies 50396    # the state JKR offices, e.g. 50407 JKR Selangor
+complainerr --site kkr submit --type aduan --subject "..." --detail "..." --location "..." \
+  --agency 50407 --recaptcha-token TOKEN --send
+```
+
+The KKR submit uses reCAPTCHA, like JPA. A dry run on 2026-11-25 against the real site gave the expected payload. No real case was sent to KKR yet.
 
 Verified on MBSJ on 2026-11-24 with a real case: the upload, the OTP request and check, and `save.do`. The `save.do` page says "Your feedback is successfully submited. MBSJ.<number> is your feedback reference ID." The client returns that page as text and does not extract the ID yet.
 
@@ -50,6 +88,7 @@ uv venv && uv pip install -e '.[test]'
 complainerr categories                # top-level categories
 complainerr categories 2012           # children of category 2012
 complainerr categories 2012 --json
+complainerr --site kkr agencies [PARENT]  # offices that a case can go to (KKR)
 
 complainerr submit --type aduan --subject "Gaji lewat" --detail "..." --category 2013 \
   --name "ALI BIN ABU" --doc-no 900101145555 --mobile 0123456789 --email ali@example.com
@@ -60,7 +99,7 @@ complainerr submit ...                # with these set, submit logs in first
 complainerr status CASE_ID --case-password PW --doc-no 900101145555
 ```
 
-Case types: `aduan` (15, complaint), `appeal` (2044), `cadangan` (22, suggestion), `penghargaan` (23, compliment), `pertanyaan` (21, enquiry).
+Case types: `aduan` (complaint), `appeal`, `cadangan` (suggestion), `penghargaan` (compliment), `pertanyaan` (enquiry), `permohonan` (MBSJ), `integriti` (KKR). Each site has its own IDs for them.
 
 A category marked `[group]` is not selectable. Run `complainerr categories <id>` and pick one of its children.
 
