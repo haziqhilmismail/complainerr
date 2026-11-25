@@ -1,6 +1,6 @@
 ---
 name: complainerr
-description: File a public complaint, suggestion, compliment or enquiry (aduan, cadangan, penghargaan, pertanyaan) with a Malaysian agency through its SISPAA site, using the complainerr CLI. Use this whenever the user describes a local problem they want reported to the authorities (illegal parking, cars in motorcycle bays, potholes, clogged drains, rubbish, broken street lights, noise, stray animals in Subang Jaya / Puchong / USJ) or a civil-service matter for JPA, even if they never say "SISPAA" or "complainerr" — e.g. "report this to MBSJ", "buat aduan", "complain to the majlis about this photo".
+description: File a public complaint, suggestion, compliment or enquiry (aduan, cadangan, penghargaan, pertanyaan) with a Malaysian agency through its SISPAA site, using the complainerr CLI. Use this whenever the user describes a local problem they want reported to the authorities (illegal parking, cars in motorcycle bays, potholes, clogged drains, rubbish, broken street lights, noise, stray animals in Subang Jaya / Puchong / USJ / Petaling Jaya), a JPJ matter (licence, road tax, vehicle registration), an overpricing or trader complaint for KPDN, a federal road or highway problem for KKR / JKR / LLM (the MyJalan app's job), or a civil-service matter for JPA, even if they never say "SISPAA" or "complainerr" — e.g. "report this to MBSJ", "lapor kepada MBPJ", "this shop overcharged me", "report this pothole on the federal road to JKR", "buat aduan", "complain to the majlis about this photo".
 ---
 
 # Complainerr
@@ -19,11 +19,15 @@ A filed case goes to a real government officer and cannot be withdrawn. That is 
 | Site | Use for | Extra field | Send step |
 |---|---|---|---|
 | `mbsj` | Majlis Bandaraya Subang Jaya area: Subang Jaya, USJ, Puchong, Seri Kembangan (if you are not sure an address is in this area, say so). Parking, roads, drains, rubbish, lights, hawkers, noise | `--location` (required) | Email OTP |
+| `kkr` | Federal roads and Ministry of Works bodies: JKR (federal roads, e.g. a "FT" route number), LLM (tolled highways), CIDB. This replaces the MyJalan app for complaints | `--location` (required), `--agency` (pick the office) | reCAPTCHA token from the user's browser |
+| `mbpj` | Majlis Bandaraya Petaling Jaya area: PJ, Damansara, Kelana Jaya, SS and PJU sections, Sunway. The same kinds of local problems as MBSJ | `--category`, `--location`, and the zone `--field cpLocation2=ID` | reCAPTCHA token from the user's browser |
+| `jpj` | Road Transport Department: licences, road tax, vehicle registration, JPJ counters and officers, unsafe commercial vehicles | `--agency` (the state JPJ office), and `--field` for `rqAddr`, `rqPostcode`, `rqAge` (an age band) and `rqGender` | reCAPTCHA token from the user's browser |
+| `kpdn` | Domestic Trade: overpricing, short weight, fake goods, petrol stations, controlled items | none | Email OTP |
 | `jpa` | Public Service Department matters only: civil-service pay, pension, HR, exams, INTAN, scholarships | `--category` (required) | reCAPTCHA token from the user's browser |
 
-If the problem belongs to another agency (another council, PDRM, JKR federal roads, TNB, Syabas/Air Selangor), say which body it belongs to and that complainerr does not support that site yet. Do not file it with MBSJ or JPA just because those are the sites that work: a misrouted case wastes an officer's time and the user's report goes nowhere.
+If the problem belongs to another agency (another council, PDRM, TNB, Syabas/Air Selangor), say which body it belongs to and that complainerr does not support that site yet. Do not file it with another site just because that site works: a misrouted case wastes an officer's time and the user's report goes nowhere.
 
-For JPA, list categories with `complainerr --site jpa categories [PARENT]` and pick a selectable leaf (rows marked `[group]` need a child).
+For MBPJ, find the zone with `complainerr --site mbpj zones <name>` (e.g. `zones "ss 2"`), and the category under `complainerr --site mbpj categories 2041`. For KKR and JPJ, list offices with `complainerr --site <site> agencies [PARENT]` and pick the most specific one (KKR: state JKR offices are under `50396`, highway offices under `28246`). For JPA, list categories with `complainerr --site jpa categories [PARENT]` and pick a selectable leaf (rows marked `[group]` need a child).
 
 ## 2. Gather the facts
 
@@ -47,13 +51,13 @@ exec complainerr --site mbsj submit --type aduan \
   --subject "..." --detail "..." --location "..." --attach /path/photo.png "$@"
 ```
 
-Run it without `--send` and check the printed payload: `cpTyp`, `cpSubject`, `cpLocation` or `cpCategory`, and the `rq*` fields. Fix any error it prints (missing location, group category, wrong type for the site) before going on.
+Run it without `--send` and check the printed payload: `cpTyp`, `cpSubject`, `cpLocation` or `cpCategory`, and the `rq*` fields. Fix any error it prints (missing location, group category, wrong type for the site) before going on. If it says `this site also needs <fields>`, ask the user for those values (JPJ: address, postcode, age band, gender) and add each as `--field NAME=VALUE`; never invent them.
 
 ## 5. Send
 
 Only after the user's "send".
 
-**MBSJ (email OTP).** The CLI uploads the photo, asks MBSJ to email a code, then waits for the code on stdin. Feed it through a pipe so you can pass the code in later:
+**MBSJ and KPDN (email OTP).** The CLI uploads the photo, asks the site to email a code, then waits for the code on stdin. Feed it through a pipe so you can pass the code in later:
 
 ```sh
 mkfifo "$TMP/otp.fifo"
@@ -63,7 +67,7 @@ mkfifo "$TMP/otp.fifo"
 
 Then ask the user for the 6-digit code from their email (in T3 Code use `request_secret` with file delivery; otherwise ask in chat). Write it plus a newline into the fifo within 5 minutes, wait for `exit=` in the log, and delete the fifo.
 
-**JPA (reCAPTCHA).** Complainerr does not solve or bypass the captcha, and you should not try to (no AI solvers, no `claude -p`): it is the site's anti-bot control. Ask the user to open the JPA new-case page in their browser, tick "I'm not a robot", run `grecaptcha.getResponse()` in DevTools and send you the string. Then run the script with `--recaptcha-token <token> --send` within about 2 minutes.
+**JPA, KKR, MBPJ and JPJ (reCAPTCHA).** Complainerr does not solve or bypass the captcha, and you should not try to (no AI solvers, no `claude -p`): it is the site's anti-bot control. Ask the user to open the site's new-case page (`https://<site>.spab.gov.my/eApps/sdmscasepool/SdmsCasePool/add.do`) in their browser, tick "I'm not a robot", run `grecaptcha.getResponse()` in DevTools and send you the string. Then run the script with `--recaptcha-token <token> --send` within about 2 minutes.
 
 ## 6. Report
 

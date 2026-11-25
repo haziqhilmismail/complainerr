@@ -9,7 +9,11 @@ from complainerr.client import ADD, CHECK, SITES, UPLOAD_PAGE, parse_form
 FIXTURES = Path(__file__).parent / "fixtures"
 ADD_URL, CHECK_URL = (SITES["jpa"] + p for p in (ADD, CHECK))
 MBSJ_ADD_URL = SITES["mbsj"] + ADD
+KKR_ADD_URL = SITES["kkr"] + ADD
 PAGES = {
+    SITES["jpj"] + ADD: (FIXTURES / "jpj_add.html").read_text(encoding="latin-1"),
+    SITES["mbpj"] + ADD: (FIXTURES / "mbpj_add.html").read_text(encoding="latin-1"),
+    KKR_ADD_URL: (FIXTURES / "kkr_add.html").read_text(encoding="latin-1"),
     MBSJ_ADD_URL: (FIXTURES / "mbsj_add.html").read_text(encoding="latin-1"),
     SITES["mbsj"] + UPLOAD_PAGE: (FIXTURES / "mbsj_upload.html").read_text(encoding="latin-1"),
     ADD_URL: (FIXTURES / "add.html").read_text(encoding="latin-1"),
@@ -193,7 +197,7 @@ def test_mbsj_payload_has_location_and_no_category():
 
 
 def test_mbsj_needs_location():
-    with pytest.raises(SispaaError, match="needs a location"):
+    with pytest.raises(SispaaError, match="also needs cpLocation; give --location$"):
         client("mbsj").build_payload(Case(CaseType.ADUAN, "s", "d", REQUESTER))
 
 
@@ -256,3 +260,151 @@ def test_cli_takes_requester_from_profile(tmp_path, monkeypatch):
     assert result.exit_code == 0, result.output
     payload = json.loads(result.stdout[result.stdout.index("{"):])
     assert (payload["rqName"], payload["rqDocNo"], payload["rqEmail"]) == ("ALI BIN ABU", "900101145555", "ali@example.com")
+
+
+KKR = SITES["kkr"] + "/sdmscasepool/SdmsCasePool"
+KKR_CASE = Case(CaseType.ADUAN, "Lubang di jalan", "Butiran.", requester=REQUESTER,
+                location="Jalan Puchong, KM 12", agency="50407")
+
+
+@pytest.mark.parametrize("case_type,cp_typ", [
+    (CaseType.ADUAN, "2005"),
+    (CaseType.CADANGAN, "2016"),
+    (CaseType.PENGHARGAAN, "2017"),
+    (CaseType.PERTANYAAN, "2015"),
+    (CaseType.INTEGRITI, "2007"),
+])
+def test_kkr_maps_case_types_to_its_own_ids(case_type, cp_typ):
+    p = client("kkr").build_payload(Case(case_type, "s", "d", requester=REQUESTER, location="x"))
+    assert p["cpTyp"] == cp_typ
+
+
+def test_kkr_payload_has_agency_location_and_recaptcha():
+    p = client("kkr").build_payload(KKR_CASE)
+    assert {k: p[k] for k in ("cpTyp", "cpTarget", "cpTargetHost", "cpLocation", "google_recaptcha")} == {
+        "cpTyp": "2005", "cpTarget": "50407", "cpTargetHost": "28309",
+        "cpLocation": "Jalan Puchong, KM 12", "google_recaptcha": "Y",
+    }
+
+
+def test_kkr_without_agency_goes_to_the_ministry():
+    p = client("kkr").build_payload(Case(CaseType.ADUAN, "s", "d", requester=REQUESTER, location="x"))
+    assert p["cpTarget"] == "28309"
+
+
+def test_agency_on_a_site_without_agencies_is_rejected():
+    with pytest.raises(SispaaError, match="no agency choice"):
+        client().build_payload(Case(CaseType.ADUAN, "s", "d", REQUESTER, "2013", agency="1"))
+
+
+def test_kkr_agencies_lists_children_of_the_ministry():
+    reply = json.dumps([{"label": "- Please Select -", "value": ""}, {"label": "works Department", "value": "28245"},
+                        {"label": "Pusat Khidmat Kontraktor", "value": "41678:N"}])
+    c = client("kkr", post_text=reply)
+    assert c.agencies() == [Category("28245", "works Department", True),
+                            Category("41678", "Pusat Khidmat Kontraktor", False)]
+    assert c.session.posts == [(f"{KKR}/loadTargetList.do", {"parentId": "28309", "dbComn": "N", "level": "2"})]
+
+
+def test_kkr_agencies_of_a_parent_starts_the_session_first():
+    c = client("kkr", post_text="")
+    assert c.agencies("50396") == []
+    assert c.session.gets == [(KKR_ADD_URL, {})]
+    assert c.session.posts == [(f"{KKR}/loadTargetList.do", {"parentId": "50396", "dbComn": "N", "level": "2"})]
+
+
+def test_agencies_on_jpa_is_rejected():
+    with pytest.raises(SispaaError, match="no agency choice"):
+        client().agencies()
+
+
+JPJ_DETAILS = {"rqAddr": "1 Jalan X, Puchong", "rqPostcode": "47100", "rqAge": "2630", "rqGender": "M"}
+
+
+def jpj_case(**fields):
+    return Case(CaseType.ADUAN, "s", "d", REQUESTER, agency="30010", fields=fields)
+
+
+def test_jpj_names_every_required_field_that_is_empty():
+    with pytest.raises(SispaaError, match="also needs rqAddr, rqAge, rqGender, rqPostcode; give --field rqAddr=VALUE, "
+                                          "--field rqAge=VALUE, --field rqGender=VALUE, --field rqPostcode=VALUE$"):
+        client("jpj").build_payload(jpj_case())
+
+
+def test_jpj_payload_with_its_extra_fields():
+    p = client("jpj").build_payload(jpj_case(**JPJ_DETAILS))
+    assert {k: p[k] for k in ("cpTyp", "cpTarget", "rqPhone", "rqTyp", "rqCountry", *JPJ_DETAILS)} == {
+        "cpTyp": "986", "cpTarget": "30010", "rqPhone": "0123456789",
+        "rqTyp": "",  # JPJ has only IND, so the requester's CTZ is not sent
+        "rqCountry": "8", **JPJ_DETAILS,
+    }
+
+
+def test_field_value_must_be_one_of_the_choices():
+    with pytest.raises(SispaaError, match=r"rqAge=25 is not a choice; pick one of: 18 \(<18\), 1825 \(18-25\)"):
+        client("jpj").build_payload(jpj_case(**JPJ_DETAILS | {"rqAge": "25"}))
+
+
+def test_field_must_exist_on_the_site():
+    with pytest.raises(SispaaError, match="this site has no field rqPostcode"):
+        client().build_payload(Case(CaseType.ADUAN, "s", "d", REQUESTER, "2013", fields={"rqPostcode": "1"}))
+
+
+MBPJ_CASE = Case(CaseType.ADUAN, "s", "d", REQUESTER, "2048", location="Jalan SS 2/24")
+
+
+def test_mbpj_needs_a_zone():
+    with pytest.raises(SispaaError, match="also needs cpLocation2;"):
+        client("mbpj").build_payload(MBPJ_CASE)
+
+
+def test_mbpj_payload_with_zone():
+    case = Case(CaseType.ADUAN, "s", "d", REQUESTER, "2048", location="Jalan SS 2/24", fields={"cpLocation2": "2669"})
+    p = client("mbpj").build_payload(case)
+    assert {k: p[k] for k in ("cpTyp", "cpCategory", "cpLocation", "cpLocation2", "google_recaptcha")} == {
+        "cpTyp": "15", "cpCategory": "2048", "cpLocation": "Jalan SS 2/24", "cpLocation2": "2669",
+        "google_recaptcha": "Y",
+    }
+
+
+MBPJ_ZONES = SITES["mbpj"] + "/sdmscasepool/SdmsCasePool/ajaxloadcplocation.do"
+
+
+def test_mbpj_zones_by_name():
+    c = client("mbpj", post_text=json.dumps([{"label": "ZON 8 > SS 2", "value": "2669"}]))
+    assert c.zones("ss 2") == [Category("2669", "ZON 8 > SS 2", True)]
+    assert c.session.posts == [(MBPJ_ZONES, {"cpLocation2Disp": "ss 2"})]
+
+
+def test_mbpj_zones_skip_the_not_found_row():
+    c = client("mbpj", post_text=json.dumps([{"label": "Sorry, record not found...", "value": ""}]))
+    assert c.zones("zzz") == []
+
+
+def test_zones_on_a_site_without_zones_is_rejected():
+    c = client("mbsj")
+    with pytest.raises(SispaaError, match="no zone choice"):
+        c.zones("ss")
+    assert c.session.posts == []
+
+
+def test_jpa_needs_a_category():
+    with pytest.raises(SispaaError, match="also needs cpCategory; give --category$"):
+        client().build_payload(Case(CaseType.ADUAN, "s", "d", REQUESTER))
+
+
+@pytest.mark.parametrize("name,option", [("cpTarget", "--agency"), ("rqEmail", "--email"), ("agreeTnc", "the client")])
+def test_field_cannot_override_what_the_client_sets(name, option):
+    with pytest.raises(SispaaError, match=f"{name} comes from {option}, not from --field"):
+        client("jpj").build_payload(jpj_case(**JPJ_DETAILS | {name: "x"}))
+
+
+@pytest.mark.parametrize("bad", ["rqAddr", "=x"])
+def test_cli_rejects_a_field_that_is_not_name_value(bad):
+    from click.testing import CliRunner
+    from complainerr.cli import main
+    result = CliRunner().invoke(main, ["--site", "jpj", "submit", "--type", "aduan", "--subject", "s", "--detail", "d",
+                                       "--name", "A", "--doc-no", "1", "--mobile", "1", "--email", "a@b.c",
+                                       "--field", bad])
+    assert result.exit_code == 2
+    assert f"'{bad}' is not NAME=VALUE" in result.output
